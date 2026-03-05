@@ -2,200 +2,280 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Cavalo Runner ULTRA</title>
+<title>Cavalo Runner Cartoon 9/10</title>
 <style>
-body{
-    margin:0;
-    overflow:hidden;
-    font-family:Arial;
-}
-canvas{
-    display:none;
-}
-#lobby, #gameOverScreen{
-    position:absolute;
-    width:100%;
-    height:100%;
-    display:flex;
-    flex-direction:column;
-    justify-content:center;
-    align-items:center;
-    background:linear-gradient(#4facfe,#00f2fe);
-    color:white;
-}
-button{
-    padding:15px 30px;
-    font-size:20px;
-    margin:10px;
-    cursor:pointer;
-    border:none;
-    border-radius:8px;
-}
-#gameOverScreen{
-    display:none;
-    background:rgba(0,0,0,0.8);
+body{margin:0;overflow:hidden;font-family:Arial;}
+canvas{display:block;}
+#ui{
+position:absolute;
+top:20px;
+left:20px;
+color:white;
+font-weight:bold;
+text-shadow:2px 2px 4px black;
 }
 </style>
 </head>
 <body>
 
-<div id="lobby">
-    <h1>🐎 Cavalo Runner ULTRA</h1>
-    <p id="recordText"></p>
-    <button onclick="startGame()">Jogar</button>
-    <button onclick="showInstructions()">Instruções</button>
-</div>
-
 <canvas id="game"></canvas>
-
-<div id="gameOverScreen">
-    <h1>Game Over</h1>
-    <p id="finalScore"></p>
-    <button onclick="restartGame()">Voltar ao Lobby</button>
+<div id="ui">
+<div id="score">Pontos: 0</div>
+<div id="combo">Combo: 0</div>
 </div>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+canvas.width=window.innerWidth;
+canvas.height=window.innerHeight;
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+let ground=canvas.height-180;
 
-let ground = canvas.height - 150;
-
-let horse = {
-    x:200,
-    y:ground,
-    width:100,
-    height:60,
-    velocityY:0,
-    jumping:false
+let horse={
+x:200,
+y:ground,
+vy:0,
+jumpCount:0,
+width:120,
+height:80,
+dash:0,
+shield:0
 };
 
-let gravity = 1;
-let obstacles = [];
-let speed = 7;
-let score = 0;
-let best = localStorage.getItem("bestLobby") || 0;
-let gameRunning = false;
+let gravity=1;
+let speed=7;
+let score=0;
+let combo=0;
+let obstacles=[];
+let trees=[];
+let clouds=[];
+let cameraShake=0;
 
-document.getElementById("recordText").innerText =
-"🏆 Recorde: " + best;
-
-function startGame(){
-    document.getElementById("lobby").style.display="none";
-    canvas.style.display="block";
-    gameRunning = true;
-    update();
+// criar árvores
+for(let i=0;i<10;i++){
+trees.push({x:i*300});
 }
 
-function showInstructions(){
-    alert("📱 Toque na tela ou aperte ESPAÇO para pular.\nDesvie dos obstáculos!\nA velocidade aumenta com o tempo.");
+// criar nuvens
+for(let i=0;i<6;i++){
+clouds.push({
+x:Math.random()*canvas.width,
+y:Math.random()*200,
+size:60+Math.random()*60
+});
 }
 
 function spawnObstacle(){
-    obstacles.push({
-        x:canvas.width,
-        y:ground,
-        width:50,
-        height:70
-    });
+let type=Math.floor(Math.random()*3);
+obstacles.push({
+x:canvas.width,
+type:type,
+width:80,
+height: type==2?40:80
+});
+}
+
+function drawSky(){
+let gradient=ctx.createLinearGradient(0,0,0,canvas.height);
+gradient.addColorStop(0,"#4facfe");
+gradient.addColorStop(1,"#00f2fe");
+ctx.fillStyle=gradient;
+ctx.fillRect(0,0,canvas.width,canvas.height);
+
+// sol
+ctx.beginPath();
+ctx.arc(canvas.width-150,100,60,0,Math.PI*2);
+ctx.fillStyle="yellow";
+ctx.fill();
+}
+
+function drawClouds(){
+ctx.fillStyle="white";
+clouds.forEach(c=>{
+c.x-=1;
+if(c.x<-100)c.x=canvas.width;
+ctx.beginPath();
+ctx.arc(c.x,c.y,c.size/2,0,Math.PI*2);
+ctx.fill();
+});
+}
+
+function drawTrees(){
+trees.forEach(t=>{
+t.x-=speed*0.5;
+if(t.x<-100)t.x=canvas.width;
+ctx.fillStyle="#2E8B57";
+ctx.fillRect(t.x,ground-120,40,120);
+ctx.beginPath();
+ctx.arc(t.x+20,ground-130,60,0,Math.PI*2);
+ctx.fill();
+});
 }
 
 function drawGround(){
-    ctx.fillStyle="#228B22";
-    ctx.fillRect(0,ground+horse.height,canvas.width,canvas.height);
+ctx.fillStyle="#228B22";
+ctx.fillRect(0,ground+horse.height,canvas.width,canvas.height);
 }
 
 function drawHorse(){
-    ctx.fillStyle="#8B4513";
-    ctx.fillRect(horse.x,horse.y,horse.width,horse.height);
-    ctx.fillRect(horse.x+70,horse.y-20,40,40);
+let legSwing=Math.sin(Date.now()*0.01)*15;
+
+// sombra
+ctx.beginPath();
+ctx.ellipse(horse.x+60,ground+horse.height,50,15,0,0,Math.PI*2);
+ctx.fillStyle="rgba(0,0,0,0.3)";
+ctx.fill();
+
+// corpo
+ctx.fillStyle="#A0522D";
+ctx.beginPath();
+ctx.ellipse(horse.x+60,horse.y+40,60,40,0,0,Math.PI*2);
+ctx.fill();
+
+// cabeça
+ctx.beginPath();
+ctx.ellipse(horse.x+110,horse.y+20,30,25,0,0,Math.PI*2);
+ctx.fill();
+
+// olho
+ctx.fillStyle="white";
+ctx.beginPath();
+ctx.arc(horse.x+120,horse.y+15,8,0,Math.PI*2);
+ctx.fill();
+ctx.fillStyle="black";
+ctx.beginPath();
+ctx.arc(horse.x+122,horse.y+15,4,0,Math.PI*2);
+ctx.fill();
+
+// pernas
+ctx.fillStyle="#5C3317";
+ctx.fillRect(horse.x+30,horse.y+70+legSwing,10,40);
+ctx.fillRect(horse.x+70,horse.y+70-legSwing,10,40);
+
+// escudo
+if(horse.shield>0){
+ctx.strokeStyle="cyan";
+ctx.lineWidth=4;
+ctx.beginPath();
+ctx.arc(horse.x+60,horse.y+40,70,0,Math.PI*2);
+ctx.stroke();
+}
 }
 
 function update(){
-    if(!gameRunning) return;
+ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+drawSky();
+drawClouds();
+drawTrees();
+drawGround();
 
-    ctx.fillStyle="skyblue";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-
-    drawGround();
-
-    horse.velocityY += gravity;
-    horse.y += horse.velocityY;
-
-    if(horse.y >= ground){
-        horse.y = ground;
-        horse.jumping = false;
-    }
-
-    drawHorse();
-
-    ctx.fillStyle="darkgreen";
-    obstacles.forEach((obs,index)=>{
-        obs.x -= speed;
-        ctx.fillRect(obs.x,obs.y,obs.width,obs.height);
-
-        if(
-            horse.x < obs.x + obs.width &&
-            horse.x + horse.width > obs.x &&
-            horse.y < obs.y + obs.height &&
-            horse.y + horse.height > obs.y
-        ){
-            endGame();
-        }
-
-        if(obs.x + obs.width < 0){
-            obstacles.splice(index,1);
-            score++;
-        }
-    });
-
-    ctx.fillStyle="black";
-    ctx.font="30px Arial";
-    ctx.fillText("Pontos: "+score,20,40);
-
-    speed += 0.002;
-
-    requestAnimationFrame(update);
+// física
+horse.vy+=gravity;
+horse.y+=horse.vy;
+if(horse.y>=ground){
+horse.y=ground;
+horse.jumpCount=0;
 }
 
-function endGame(){
-    gameRunning = false;
-
-    if(score > best){
-        best = score;
-        localStorage.setItem("bestLobby",best);
-    }
-
-    document.getElementById("finalScore").innerText =
-    "Pontuação: " + score + " | Recorde: " + best;
-
-    canvas.style.display="none";
-    document.getElementById("gameOverScreen").style.display="flex";
+// dash
+if(horse.dash>0){
+speed=12;
+horse.dash--;
+}else{
+speed=7;
 }
 
-function restartGame(){
-    location.reload();
+// obstáculos
+obstacles.forEach((o,i)=>{
+o.x-=speed;
+
+if(o.type==0){ // pedra
+ctx.fillStyle="gray";
+ctx.beginPath();
+ctx.arc(o.x,ground+40,40,0,Math.PI*2);
+ctx.fill();
+}
+if(o.type==1){ // cerca
+ctx.fillStyle="#8B4513";
+ctx.fillRect(o.x,ground,20,80);
+ctx.fillRect(o.x+40,ground,20,80);
+}
+if(o.type==2){ // buraco
+ctx.fillStyle="black";
+ctx.fillRect(o.x,ground+60,80,40);
 }
 
-document.addEventListener("keydown", e=>{
-    if(e.code==="Space" && !horse.jumping && gameRunning){
-        horse.velocityY=-20;
-        horse.jumping=true;
-    }
+if(collide(o)){
+if(horse.shield>0){
+horse.shield=0;
+obstacles.splice(i,1);
+}else{
+alert("Game Over! Pontos: "+score);
+location.reload();
+}
+}else if(o.x<0){
+obstacles.splice(i,1);
+score++;
+combo++;
+}
 });
 
-document.addEventListener("touchstart", ()=>{
-    if(!horse.jumping && gameRunning){
-        horse.velocityY=-20;
-        horse.jumping=true;
-    }
+// power up escudo
+if(Math.random()<0.002){
+ctx.fillStyle="cyan";
+ctx.beginPath();
+ctx.arc(canvas.width-100,ground-100,20,0,Math.PI*2);
+ctx.fill();
+horse.shield=200;
+}
+
+if(combo>0 && combo%5==0){
+cameraShake=5;
+}
+
+if(cameraShake>0){
+ctx.translate(Math.random()*10-5,Math.random()*10-5);
+cameraShake--;
+}
+
+drawHorse();
+
+document.getElementById("score").innerText="Pontos: "+score;
+document.getElementById("combo").innerText="Combo: "+combo;
+
+requestAnimationFrame(update);
+}
+
+function collide(o){
+return(
+horse.x+100>o.x &&
+horse.x<o.x+80 &&
+horse.y+80>ground
+);
+}
+
+document.addEventListener("keydown",e=>{
+if(e.code==="Space" && horse.jumpCount<2){
+horse.vy=-18;
+horse.jumpCount++;
+}
+if(e.code==="ShiftLeft"){
+horse.dash=20;
+}
+});
+
+document.addEventListener("touchstart",()=>{
+if(horse.jumpCount<2){
+horse.vy=-18;
+horse.jumpCount++;
+}
 });
 
 setInterval(spawnObstacle,1400);
+
+update();
 </script>
 
 </body>
