@@ -2,41 +2,56 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Cavalo Runner PRO</title>
+<title>Cavalo Runner ULTRA</title>
 <style>
 body{
     margin:0;
     overflow:hidden;
-    background:linear-gradient(#87CEEB,#E0F6FF);
     font-family:Arial;
 }
 canvas{
-    display:block;
-}
-#gameOverScreen{
-    position:absolute;
-    top:50%;
-    left:50%;
-    transform:translate(-50%,-50%);
-    text-align:center;
     display:none;
 }
+#lobby, #gameOverScreen{
+    position:absolute;
+    width:100%;
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    background:linear-gradient(#4facfe,#00f2fe);
+    color:white;
+}
 button{
-    padding:10px 20px;
-    font-size:18px;
+    padding:15px 30px;
+    font-size:20px;
+    margin:10px;
     cursor:pointer;
+    border:none;
+    border-radius:8px;
+}
+#gameOverScreen{
+    display:none;
+    background:rgba(0,0,0,0.8);
 }
 </style>
 </head>
 <body>
 
+<div id="lobby">
+    <h1>🐎 Cavalo Runner ULTRA</h1>
+    <p id="recordText"></p>
+    <button onclick="startGame()">Jogar</button>
+    <button onclick="showInstructions()">Instruções</button>
+</div>
+
 <canvas id="game"></canvas>
 
 <div id="gameOverScreen">
-    <h1>🐎 Game Over</h1>
+    <h1>Game Over</h1>
     <p id="finalScore"></p>
-    <p id="bestScore"></p>
-    <button onclick="restartGame()">Jogar Novamente</button>
+    <button onclick="restartGame()">Voltar ao Lobby</button>
 </div>
 
 <script>
@@ -49,72 +64,41 @@ canvas.height = window.innerHeight;
 let ground = canvas.height - 150;
 
 let horse = {
-    x:150,
+    x:200,
     y:ground,
-    width:90,
+    width:100,
     height:60,
     velocityY:0,
     jumping:false
 };
 
-let gravity = 0.9;
+let gravity = 1;
 let obstacles = [];
-let coins = [];
-let clouds = [];
-let speed = 6;
+let speed = 7;
 let score = 0;
-let best = localStorage.getItem("bestScore") || 0;
-let gameOver = false;
+let best = localStorage.getItem("bestLobby") || 0;
+let gameRunning = false;
 
-// criar nuvens
-for(let i=0;i<5;i++){
-    clouds.push({
-        x:Math.random()*canvas.width,
-        y:Math.random()*200,
-        size:60+Math.random()*40
-    });
+document.getElementById("recordText").innerText =
+"🏆 Recorde: " + best;
+
+function startGame(){
+    document.getElementById("lobby").style.display="none";
+    canvas.style.display="block";
+    gameRunning = true;
+    update();
+}
+
+function showInstructions(){
+    alert("📱 Toque na tela ou aperte ESPAÇO para pular.\nDesvie dos obstáculos!\nA velocidade aumenta com o tempo.");
 }
 
 function spawnObstacle(){
     obstacles.push({
         x:canvas.width,
         y:ground,
-        width:40+Math.random()*30,
-        height:60+Math.random()*40
-    });
-}
-
-function spawnCoin(){
-    coins.push({
-        x:canvas.width,
-        y:ground-80-Math.random()*100,
-        size:20
-    });
-}
-
-function drawMountains(){
-    ctx.fillStyle="#556B2F";
-    ctx.beginPath();
-    ctx.moveTo(0,ground);
-    ctx.lineTo(200,ground-200);
-    ctx.lineTo(400,ground);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(300,ground);
-    ctx.lineTo(600,ground-250);
-    ctx.lineTo(900,ground);
-    ctx.fill();
-}
-
-function drawClouds(){
-    ctx.fillStyle="white";
-    clouds.forEach(cloud=>{
-        cloud.x -= 1;
-        if(cloud.x < -100) cloud.x = canvas.width;
-        ctx.beginPath();
-        ctx.arc(cloud.x,cloud.y,cloud.size/2,0,Math.PI*2);
-        ctx.fill();
+        width:50,
+        height:70
     });
 }
 
@@ -126,21 +110,17 @@ function drawGround(){
 function drawHorse(){
     ctx.fillStyle="#8B4513";
     ctx.fillRect(horse.x,horse.y,horse.width,horse.height);
-
     ctx.fillRect(horse.x+70,horse.y-20,40,40);
-
-    ctx.fillStyle="black";
-    ctx.fillRect(horse.x+15,horse.y+55,10,35);
-    ctx.fillRect(horse.x+60,horse.y+55,10,35);
 }
 
 function update(){
-    if(gameOver) return;
+    if(!gameRunning) return;
 
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    drawMountains();
-    drawClouds();
+    ctx.fillStyle="skyblue";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
     drawGround();
 
     horse.velocityY += gravity;
@@ -173,48 +153,28 @@ function update(){
         }
     });
 
-    ctx.fillStyle="gold";
-    coins.forEach((coin,index)=>{
-        coin.x -= speed;
-        ctx.beginPath();
-        ctx.arc(coin.x,coin.y,coin.size,0,Math.PI*2);
-        ctx.fill();
-
-        if(
-            horse.x < coin.x + coin.size &&
-            horse.x + horse.width > coin.x - coin.size &&
-            horse.y < coin.y + coin.size &&
-            horse.y + horse.height > coin.y - coin.size
-        ){
-            coins.splice(index,1);
-            score += 5;
-        }
-
-        if(coin.x < -20){
-            coins.splice(index,1);
-        }
-    });
-
     ctx.fillStyle="black";
     ctx.font="30px Arial";
     ctx.fillText("Pontos: "+score,20,40);
 
-    speed += 0.003;
+    speed += 0.002;
 
     requestAnimationFrame(update);
 }
 
 function endGame(){
-    gameOver = true;
+    gameRunning = false;
 
     if(score > best){
         best = score;
-        localStorage.setItem("bestScore",best);
+        localStorage.setItem("bestLobby",best);
     }
 
-    document.getElementById("finalScore").innerText = "Pontuação: " + score;
-    document.getElementById("bestScore").innerText = "Recorde: " + best;
-    document.getElementById("gameOverScreen").style.display="block";
+    document.getElementById("finalScore").innerText =
+    "Pontuação: " + score + " | Recorde: " + best;
+
+    canvas.style.display="none";
+    document.getElementById("gameOverScreen").style.display="flex";
 }
 
 function restartGame(){
@@ -222,23 +182,20 @@ function restartGame(){
 }
 
 document.addEventListener("keydown", e=>{
-    if(e.code==="Space" && !horse.jumping){
-        horse.velocityY = -20;
-        horse.jumping = true;
+    if(e.code==="Space" && !horse.jumping && gameRunning){
+        horse.velocityY=-20;
+        horse.jumping=true;
     }
 });
 
 document.addEventListener("touchstart", ()=>{
-    if(!horse.jumping){
-        horse.velocityY = -20;
-        horse.jumping = true;
+    if(!horse.jumping && gameRunning){
+        horse.velocityY=-20;
+        horse.jumping=true;
     }
 });
 
 setInterval(spawnObstacle,1400);
-setInterval(spawnCoin,2000);
-
-update();
 </script>
 
 </body>
