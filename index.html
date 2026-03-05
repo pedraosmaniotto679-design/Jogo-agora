@@ -2,18 +2,10 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Subway 2D</title>
+<title>Subway 2D Realista</title>
 <style>
-body {
-    margin: 0;
-    overflow: hidden;
-    background: #222;
-}
-canvas {
-    display: block;
-    margin: auto;
-    background: linear-gradient(#444, #222);
-}
+body { margin:0; overflow:hidden; background:#87CEEB; }
+canvas { display:block; margin:auto; background:#555; }
 </style>
 </head>
 <body>
@@ -28,107 +20,188 @@ canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
 let lanes = [
-    canvas.width / 4,
-    canvas.width / 2,
-    canvas.width * 3 / 4
+    canvas.width/4,
+    canvas.width/2,
+    canvas.width*3/4
 ];
 
 let player = {
     lane: 1,
-    y: canvas.height - 120,
-    size: 40
+    y: canvas.height-150,
+    width: 40,
+    height: 60,
+    jumping:false,
+    sliding:false,
+    velocityY:0
 };
 
+let gravity = 0.8;
 let obstacles = [];
+let coins = [];
 let speed = 6;
 let score = 0;
 
-function spawnObstacle() {
-    let lane = Math.floor(Math.random() * 3);
+function spawnObstacle(){
+    let lane = Math.floor(Math.random()*3);
     obstacles.push({
-        lane: lane,
-        y: -50,
-        size: 40
+        lane:lane,
+        y:-60,
+        width:50,
+        height:60
     });
 }
 
-function update() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+function spawnCoin(){
+    let lane = Math.floor(Math.random()*3);
+    coins.push({
+        lane:lane,
+        y:-30,
+        size:20
+    });
+}
 
-    // Desenhar pistas
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = 4;
+function drawRoad(){
+    ctx.fillStyle="#333";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    ctx.strokeStyle="white";
+    ctx.lineWidth=5;
+    ctx.setLineDash([20,20]);
     ctx.beginPath();
-    ctx.moveTo(canvas.width / 3, 0);
-    ctx.lineTo(canvas.width / 3, canvas.height);
-    ctx.moveTo(canvas.width * 2 / 3, 0);
-    ctx.lineTo(canvas.width * 2 / 3, canvas.height);
+    ctx.moveTo(canvas.width/3,0);
+    ctx.lineTo(canvas.width/3,canvas.height);
+    ctx.moveTo(canvas.width*2/3,0);
+    ctx.lineTo(canvas.width*2/3,canvas.height);
     ctx.stroke();
+    ctx.setLineDash([]);
+}
 
-    // Jogador
-    ctx.fillStyle = "cyan";
+function update(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    drawRoad();
+
+    // GRAVIDADE
+    if(player.jumping){
+        player.y += player.velocityY;
+        player.velocityY += gravity;
+        if(player.y >= canvas.height-150){
+            player.y = canvas.height-150;
+            player.jumping=false;
+        }
+    }
+
+    // SOMBRA
+    ctx.fillStyle="rgba(0,0,0,0.3)";
+    ctx.beginPath();
+    ctx.ellipse(
+        lanes[player.lane],
+        canvas.height-80,
+        30,10,0,0,Math.PI*2
+    );
+    ctx.fill();
+
+    // PERSONAGEM
+    ctx.fillStyle="cyan";
     ctx.fillRect(
-        lanes[player.lane] - player.size/2,
+        lanes[player.lane]-player.width/2,
         player.y,
-        player.size,
-        player.size
+        player.width,
+        player.sliding?30:player.height
     );
 
-    // Obstáculos
-    ctx.fillStyle = "red";
-    obstacles.forEach((obs, index) => {
-        obs.y += speed;
+    // OBSTÁCULOS
+    ctx.fillStyle="red";
+    obstacles.forEach((obs,index)=>{
+        obs.y+=speed;
+
         ctx.fillRect(
-            lanes[obs.lane] - obs.size/2,
+            lanes[obs.lane]-obs.width/2,
             obs.y,
-            obs.size,
-            obs.size
+            obs.width,
+            obs.height
         );
 
-        // Colisão
-        if (
-            obs.lane === player.lane &&
-            obs.y + obs.size > player.y &&
-            obs.y < player.y + player.size
-        ) {
-            alert("Game Over! Pontuação: " + score);
+        if(
+            obs.lane===player.lane &&
+            obs.y+obs.height>player.y &&
+            obs.y<player.y+(player.sliding?30:player.height)
+        ){
+            alert("Game Over! Pontos: "+score);
             location.reload();
         }
 
-        if (obs.y > canvas.height) {
-            obstacles.splice(index, 1);
-            score++;
+        if(obs.y>canvas.height){
+            obstacles.splice(index,1);
         }
     });
 
-    // Pontuação
-    ctx.fillStyle = "white";
-    ctx.font = "25px Arial";
-    ctx.fillText("Score: " + score, 20, 40);
+    // MOEDAS
+    ctx.fillStyle="yellow";
+    coins.forEach((coin,index)=>{
+        coin.y+=speed;
 
-    speed += 0.001;
+        ctx.beginPath();
+        ctx.arc(
+            lanes[coin.lane],
+            coin.y,
+            coin.size,
+            0,
+            Math.PI*2
+        );
+        ctx.fill();
+
+        if(
+            coin.lane===player.lane &&
+            coin.y>player.y &&
+            coin.y<player.y+player.height
+        ){
+            score+=10;
+            coins.splice(index,1);
+        }
+
+        if(coin.y>canvas.height){
+            coins.splice(index,1);
+        }
+    });
+
+    // SCORE
+    ctx.fillStyle="white";
+    ctx.font="25px Arial";
+    ctx.fillText("Score: "+score,20,40);
+
+    speed+=0.002;
 
     requestAnimationFrame(update);
 }
 
-// Controles PC
-document.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowLeft" && player.lane > 0)
-        player.lane--;
-    if (e.key === "ArrowRight" && player.lane < 2)
-        player.lane++;
+// CONTROLES PC
+document.addEventListener("keydown",(e)=>{
+    if(e.key==="ArrowLeft" && player.lane>0) player.lane--;
+    if(e.key==="ArrowRight" && player.lane<2) player.lane++;
+    if(e.key==="ArrowUp" && !player.jumping){
+        player.jumping=true;
+        player.velocityY=-15;
+    }
+    if(e.key==="ArrowDown"){
+        player.sliding=true;
+        setTimeout(()=>player.sliding=false,500);
+    }
 });
 
-// Controles celular
-document.addEventListener("touchstart", function(e) {
-    let touchX = e.touches[0].clientX;
-    if (touchX < canvas.width / 2 && player.lane > 0)
-        player.lane--;
-    else if (touchX > canvas.width / 2 && player.lane < 2)
-        player.lane++;
+// CONTROLE CELULAR
+document.addEventListener("touchstart",(e)=>{
+    let x=e.touches[0].clientX;
+    if(x<canvas.width/3 && player.lane>0) player.lane--;
+    else if(x>canvas.width*2/3 && player.lane<2) player.lane++;
+    else if(!player.jumping){
+        player.jumping=true;
+        player.velocityY=-15;
+    }
 });
 
-setInterval(spawnObstacle, 1000);
+setInterval(spawnObstacle,1200);
+setInterval(spawnCoin,1500);
+
 update();
 </script>
 
