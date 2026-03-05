@@ -1,154 +1,245 @@
-```html
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Subway 2D Realista</title>
+<title>Cavalo Runner PRO</title>
 <style>
-body {
-    margin: 0;
-    overflow: hidden;
-    background: #111;
+body{
+    margin:0;
+    overflow:hidden;
+    background:linear-gradient(#87CEEB,#E0F6FF);
+    font-family:Arial;
 }
-canvas {
-    display: block;
-    margin: auto;
-    background: linear-gradient(#555, #222);
+canvas{
+    display:block;
+}
+#gameOverScreen{
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    text-align:center;
+    display:none;
+}
+button{
+    padding:10px 20px;
+    font-size:18px;
+    cursor:pointer;
 }
 </style>
 </head>
 <body>
 
-<canvas id="gameCanvas"></canvas>
+<canvas id="game"></canvas>
+
+<div id="gameOverScreen">
+    <h1>🐎 Game Over</h1>
+    <p id="finalScore"></p>
+    <p id="bestScore"></p>
+    <button onclick="restartGame()">Jogar Novamente</button>
+</div>
 
 <script>
-const canvas = document.getElementById("gameCanvas");
+const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-let lanes = [
-    canvas.width / 4,
-    canvas.width / 2,
-    canvas.width * 3 / 4
-];
+let ground = canvas.height - 150;
 
-let player = {
-    lane: 1,
-    y: canvas.height - 150,
-    width: 40,
-    height: 60,
-    jumping: false,
-    jumpForce: 0
+let horse = {
+    x:150,
+    y:ground,
+    width:90,
+    height:60,
+    velocityY:0,
+    jumping:false
 };
 
+let gravity = 0.9;
 let obstacles = [];
-let speed = 7;
-let gravity = 0.8;
+let coins = [];
+let clouds = [];
+let speed = 6;
 let score = 0;
+let best = localStorage.getItem("bestScore") || 0;
+let gameOver = false;
 
-function spawnObstacle() {
-    let lane = Math.floor(Math.random() * 3);
-    obstacles.push({
-        lane: lane,
-        y: -80,
-        width: 50,
-        height: 80
+// criar nuvens
+for(let i=0;i<5;i++){
+    clouds.push({
+        x:Math.random()*canvas.width,
+        y:Math.random()*200,
+        size:60+Math.random()*40
     });
 }
 
-function drawPlayer() {
-    ctx.fillStyle = "cyan";
-    ctx.fillRect(
-        lanes[player.lane] - player.width/2,
-        player.y,
-        player.width,
-        player.height
-    );
+function spawnObstacle(){
+    obstacles.push({
+        x:canvas.width,
+        y:ground,
+        width:40+Math.random()*30,
+        height:60+Math.random()*40
+    });
 }
 
-function update() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+function spawnCoin(){
+    coins.push({
+        x:canvas.width,
+        y:ground-80-Math.random()*100,
+        size:20
+    });
+}
 
-    // Estrada
-    ctx.fillStyle = "#333";
-    ctx.fillRect(canvas.width/3 - 5, 0, 10, canvas.height);
-    ctx.fillRect(canvas.width*2/3 - 5, 0, 10, canvas.height);
+function drawMountains(){
+    ctx.fillStyle="#556B2F";
+    ctx.beginPath();
+    ctx.moveTo(0,ground);
+    ctx.lineTo(200,ground-200);
+    ctx.lineTo(400,ground);
+    ctx.fill();
 
-    // Pulo
-    if (player.jumping) {
-        player.y -= player.jumpForce;
-        player.jumpForce -= gravity;
-        if (player.y >= canvas.height - 150) {
-            player.y = canvas.height - 150;
-            player.jumping = false;
-        }
+    ctx.beginPath();
+    ctx.moveTo(300,ground);
+    ctx.lineTo(600,ground-250);
+    ctx.lineTo(900,ground);
+    ctx.fill();
+}
+
+function drawClouds(){
+    ctx.fillStyle="white";
+    clouds.forEach(cloud=>{
+        cloud.x -= 1;
+        if(cloud.x < -100) cloud.x = canvas.width;
+        ctx.beginPath();
+        ctx.arc(cloud.x,cloud.y,cloud.size/2,0,Math.PI*2);
+        ctx.fill();
+    });
+}
+
+function drawGround(){
+    ctx.fillStyle="#228B22";
+    ctx.fillRect(0,ground+horse.height,canvas.width,canvas.height);
+}
+
+function drawHorse(){
+    ctx.fillStyle="#8B4513";
+    ctx.fillRect(horse.x,horse.y,horse.width,horse.height);
+
+    ctx.fillRect(horse.x+70,horse.y-20,40,40);
+
+    ctx.fillStyle="black";
+    ctx.fillRect(horse.x+15,horse.y+55,10,35);
+    ctx.fillRect(horse.x+60,horse.y+55,10,35);
+}
+
+function update(){
+    if(gameOver) return;
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    drawMountains();
+    drawClouds();
+    drawGround();
+
+    horse.velocityY += gravity;
+    horse.y += horse.velocityY;
+
+    if(horse.y >= ground){
+        horse.y = ground;
+        horse.jumping = false;
     }
 
-    drawPlayer();
+    drawHorse();
 
-    ctx.fillStyle = "red";
-    obstacles.forEach((obs, index) => {
-        obs.y += speed;
+    ctx.fillStyle="darkgreen";
+    obstacles.forEach((obs,index)=>{
+        obs.x -= speed;
+        ctx.fillRect(obs.x,obs.y,obs.width,obs.height);
 
-        ctx.fillRect(
-            lanes[obs.lane] - obs.width/2,
-            obs.y,
-            obs.width,
-            obs.height
-        );
-
-        if (
-            obs.lane === player.lane &&
-            player.y + player.height > obs.y &&
-            player.y < obs.y + obs.height
-        ) {
-            alert("Game Over! Score: " + score);
-            location.reload();
+        if(
+            horse.x < obs.x + obs.width &&
+            horse.x + horse.width > obs.x &&
+            horse.y < obs.y + obs.height &&
+            horse.y + horse.height > obs.y
+        ){
+            endGame();
         }
 
-        if (obs.y > canvas.height) {
-            obstacles.splice(index, 1);
+        if(obs.x + obs.width < 0){
+            obstacles.splice(index,1);
             score++;
         }
     });
 
-    ctx.fillStyle = "white";
-    ctx.font = "25px Arial";
-    ctx.fillText("Score: " + score, 20, 40);
+    ctx.fillStyle="gold";
+    coins.forEach((coin,index)=>{
+        coin.x -= speed;
+        ctx.beginPath();
+        ctx.arc(coin.x,coin.y,coin.size,0,Math.PI*2);
+        ctx.fill();
 
-    speed += 0.002;
+        if(
+            horse.x < coin.x + coin.size &&
+            horse.x + horse.width > coin.x - coin.size &&
+            horse.y < coin.y + coin.size &&
+            horse.y + horse.height > coin.y - coin.size
+        ){
+            coins.splice(index,1);
+            score += 5;
+        }
+
+        if(coin.x < -20){
+            coins.splice(index,1);
+        }
+    });
+
+    ctx.fillStyle="black";
+    ctx.font="30px Arial";
+    ctx.fillText("Pontos: "+score,20,40);
+
+    speed += 0.003;
 
     requestAnimationFrame(update);
 }
 
-document.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowLeft" && player.lane > 0)
-        player.lane--;
-    if (e.key === "ArrowRight" && player.lane < 2)
-        player.lane++;
-    if (e.key === "ArrowUp" && !player.jumping) {
-        player.jumping = true;
-        player.jumpForce = 18;
+function endGame(){
+    gameOver = true;
+
+    if(score > best){
+        best = score;
+        localStorage.setItem("bestScore",best);
+    }
+
+    document.getElementById("finalScore").innerText = "Pontuação: " + score;
+    document.getElementById("bestScore").innerText = "Recorde: " + best;
+    document.getElementById("gameOverScreen").style.display="block";
+}
+
+function restartGame(){
+    location.reload();
+}
+
+document.addEventListener("keydown", e=>{
+    if(e.code==="Space" && !horse.jumping){
+        horse.velocityY = -20;
+        horse.jumping = true;
     }
 });
 
-document.addEventListener("touchstart", function(e) {
-    let touchX = e.touches[0].clientX;
-    if (touchX < canvas.width / 3 && player.lane > 0)
-        player.lane--;
-    else if (touchX > canvas.width * 2/3 && player.lane < 2)
-        player.lane++;
-    else if (!player.jumping) {
-        player.jumping = true;
-        player.jumpForce = 18;
+document.addEventListener("touchstart", ()=>{
+    if(!horse.jumping){
+        horse.velocityY = -20;
+        horse.jumping = true;
     }
 });
 
-setInterval(spawnObstacle, 900);
+setInterval(spawnObstacle,1400);
+setInterval(spawnCoin,2000);
+
 update();
 </script>
 
 </body>
-</html>           
+</html>
