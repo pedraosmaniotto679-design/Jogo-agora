@@ -1,128 +1,154 @@
-            import pygame
-import random
+```html
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Subway 2D Realista</title>
+<style>
+body {
+    margin: 0;
+    overflow: hidden;
+    background: #111;
+}
+canvas {
+    display: block;
+    margin: auto;
+    background: linear-gradient(#555, #222);
+}
+</style>
+</head>
+<body>
 
-# --- CONFIGURAÇÕES ---
-WIDTH, HEIGHT = 600, 800
-LANE_WIDTH = WIDTH // 3
-FPS = 60
+<canvas id="gameCanvas"></canvas>
 
-class Player(pygame.sprite.Sprite):
-    def __init__(self):
-        super().__init__()
-        # Carregando os frames de animação
-        try:
-            self.frames = [
-                pygame.image.load("player_run1.png").convert_alpha(),
-                pygame.image.load("player_run2.png").convert_alpha()
-            ]
-        except:
-            # Fallback caso não existam as imagens ainda
-            self.frames = [pygame.Surface((70, 110)) for _ in range(2)]
-            self.frames[0].fill((0, 255, 128))
-            self.frames[1].fill((0, 200, 100))
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
-        self.current_frame = 0
-        self.image = self.frames[self.current_frame]
-        self.rect = self.image.get_rect()
-        self.lane = 1
-        self.rect.bottom = HEIGHT - 50
-        self.update_lane()
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-    def update_lane(self):
-        self.rect.centerx = self.lane * LANE_WIDTH + (LANE_WIDTH // 2)
+let lanes = [
+    canvas.width / 4,
+    canvas.width / 2,
+    canvas.width * 3 / 4
+];
 
-    def update(self):
-        # Animação simples: alterna entre os frames
-        self.current_frame += 0.1
-        if self.current_frame >= len(self.frames):
-            self.current_frame = 0
-        self.image = self.frames[int(self.current_frame)]
+let player = {
+    lane: 1,
+    y: canvas.height - 150,
+    width: 40,
+    height: 60,
+    jumping: false,
+    jumpForce: 0
+};
 
-class Obstacle(pygame.sprite.Sprite):
-    def __init__(self, speed):
-        super().__init__()
-        try:
-            self.image = pygame.image.load("obstacle.png").convert_alpha()
-        except:
-            self.image = pygame.Surface((LANE_WIDTH - 20, 150))
-            self.image.fill((255, 50, 50))
-            
-        self.rect = self.image.get_rect()
-        self.rect.centerx = random.randint(0, 2) * LANE_WIDTH + (LANE_WIDTH // 2)
-        self.rect.bottom = 0
-        self.speed = speed
+let obstacles = [];
+let speed = 7;
+let gravity = 0.8;
+let score = 0;
 
-    def update(self):
-        self.rect.y += self.speed
-        if self.rect.top > HEIGHT:
-            self.kill()
+function spawnObstacle() {
+    let lane = Math.floor(Math.random() * 3);
+    obstacles.push({
+        lane: lane,
+        y: -80,
+        width: 50,
+        height: 80
+    });
+}
 
-def main():
-    pygame.init()
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    clock = pygame.time.Clock()
-    
-    # --- LÓGICA DO FUNDO INFINITO ---
-    try:
-        bg = pygame.image.load("background.png").convert()
-        bg = pygame.transform.scale(bg, (WIDTH, HEIGHT))
-    except:
-        bg = pygame.Surface((WIDTH, HEIGHT))
-        bg.fill((30, 30, 30)) # Cinza escuro se não tiver imagem
+function drawPlayer() {
+    ctx.fillStyle = "cyan";
+    ctx.fillRect(
+        lanes[player.lane] - player.width/2,
+        player.y,
+        player.width,
+        player.height
+    );
+}
 
-    bg_y = 0
-    player = Player()
-    all_sprites = pygame.sprite.Group(player)
-    obstacles = pygame.sprite.Group()
-    
-    game_speed = 10
-    score = 0
-    running = True
+function update() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    while running:
-        # 1. Movimentação do Fundo (O segredo do movimento infinito)
-        # Desenhamos a imagem duas vezes, uma em cima da outra
-        bg_y += game_speed
-        if bg_y >= HEIGHT:
-            bg_y = 0
-        
-        screen.blit(bg, (0, bg_y))
-        screen.blit(bg, (0, bg_y - HEIGHT))
+    // Estrada
+    ctx.fillStyle = "#333";
+    ctx.fillRect(canvas.width/3 - 5, 0, 10, canvas.height);
+    ctx.fillRect(canvas.width*2/3 - 5, 0, 10, canvas.height);
 
-        # 2. Eventos
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT and player.lane > 0:
-                    player.lane -= 1
-                if event.key == pygame.K_RIGHT and player.lane < 2:
-                    player.lane += 1
-                player.update_lane()
+    // Pulo
+    if (player.jumping) {
+        player.y -= player.jumpForce;
+        player.jumpForce -= gravity;
+        if (player.y >= canvas.height - 150) {
+            player.y = canvas.height - 150;
+            player.jumping = false;
+        }
+    }
 
-        # 3. Criar Obstáculos
-        if random.random() < 0.02:
-            obs = Obstacle(game_speed)
-            obstacles.add(obs)
-            all_sprites.add(obs)
+    drawPlayer();
 
-        # 4. Atualizar tudo
-        all_sprites.update()
-        
-        # 5. Colisão
-        if pygame.sprite.spritecollide(player, obstacles, False):
-            print("Game Over!")
-            running = False
+    ctx.fillStyle = "red";
+    obstacles.forEach((obs, index) => {
+        obs.y += speed;
 
-        # 6. Desenhar Sprites e Pontuação
-        all_sprites.draw(screen)
-        score += 1
-        game_speed += 0.002 # O jogo fica mais rápido aos poucos
+        ctx.fillRect(
+            lanes[obs.lane] - obs.width/2,
+            obs.y,
+            obs.width,
+            obs.height
+        );
 
-        pygame.display.flip()
-        clock.tick(FPS)
+        if (
+            obs.lane === player.lane &&
+            player.y + player.height > obs.y &&
+            player.y < obs.y + obs.height
+        ) {
+            alert("Game Over! Score: " + score);
+            location.reload();
+        }
 
-    pygame.quit()
+        if (obs.y > canvas.height) {
+            obstacles.splice(index, 1);
+            score++;
+        }
+    });
 
-if __name__ == "__main__":
-    main()
+    ctx.fillStyle = "white";
+    ctx.font = "25px Arial";
+    ctx.fillText("Score: " + score, 20, 40);
+
+    speed += 0.002;
+
+    requestAnimationFrame(update);
+}
+
+document.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft" && player.lane > 0)
+        player.lane--;
+    if (e.key === "ArrowRight" && player.lane < 2)
+        player.lane++;
+    if (e.key === "ArrowUp" && !player.jumping) {
+        player.jumping = true;
+        player.jumpForce = 18;
+    }
+});
+
+document.addEventListener("touchstart", function(e) {
+    let touchX = e.touches[0].clientX;
+    if (touchX < canvas.width / 3 && player.lane > 0)
+        player.lane--;
+    else if (touchX > canvas.width * 2/3 && player.lane < 2)
+        player.lane++;
+    else if (!player.jumping) {
+        player.jumping = true;
+        player.jumpForce = 18;
+    }
+});
+
+setInterval(spawnObstacle, 900);
+update();
+</script>
+
+</body>
+</html>           
