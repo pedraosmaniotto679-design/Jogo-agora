@@ -2,17 +2,17 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Jogo 2D</title>
+<title>Subway 2D</title>
 <style>
 body {
     margin: 0;
     overflow: hidden;
-    background: black;
+    background: #222;
 }
 canvas {
     display: block;
     margin: auto;
-    background: #111;
+    background: linear-gradient(#444, #222);
 }
 </style>
 </head>
@@ -27,66 +27,108 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
+let lanes = [
+    canvas.width / 4,
+    canvas.width / 2,
+    canvas.width * 3 / 4
+];
+
 let player = {
-    x: canvas.width / 2,
-    y: canvas.height - 80,
-    size: 30,
-    speed: 7
+    lane: 1,
+    y: canvas.height - 120,
+    size: 40
 };
 
-let enemies = [];
+let obstacles = [];
+let speed = 6;
 let score = 0;
 
-function spawnEnemy() {
-    let size = 30;
-    let x = Math.random() * (canvas.width - size);
-    enemies.push({
-        x: x,
-        y: -size,
-        size: size,
-        speed: 3 + Math.random() * 3
+function spawnObstacle() {
+    let lane = Math.floor(Math.random() * 3);
+    obstacles.push({
+        lane: lane,
+        y: -50,
+        size: 40
     });
 }
 
 function update() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "blue";
-    ctx.fillRect(player.x, player.y, player.size, player.size);
+    // Desenhar pistas
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 3, 0);
+    ctx.lineTo(canvas.width / 3, canvas.height);
+    ctx.moveTo(canvas.width * 2 / 3, 0);
+    ctx.lineTo(canvas.width * 2 / 3, canvas.height);
+    ctx.stroke();
 
+    // Jogador
+    ctx.fillStyle = "cyan";
+    ctx.fillRect(
+        lanes[player.lane] - player.size/2,
+        player.y,
+        player.size,
+        player.size
+    );
+
+    // Obstáculos
     ctx.fillStyle = "red";
-    enemies.forEach((enemy, index) => {
-        enemy.y += enemy.speed;
-        ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size);
+    obstacles.forEach((obs, index) => {
+        obs.y += speed;
+        ctx.fillRect(
+            lanes[obs.lane] - obs.size/2,
+            obs.y,
+            obs.size,
+            obs.size
+        );
 
+        // Colisão
         if (
-            player.x < enemy.x + enemy.size &&
-            player.x + player.size > enemy.x &&
-            player.y < enemy.y + enemy.size &&
-            player.y + player.size > enemy.y
+            obs.lane === player.lane &&
+            obs.y + obs.size > player.y &&
+            obs.y < player.y + player.size
         ) {
             alert("Game Over! Pontuação: " + score);
             location.reload();
         }
 
-        if (enemy.y > canvas.height) {
-            enemies.splice(index, 1);
+        if (obs.y > canvas.height) {
+            obstacles.splice(index, 1);
             score++;
         }
     });
 
+    // Pontuação
     ctx.fillStyle = "white";
-    ctx.font = "20px Arial";
-    ctx.fillText("Pontuação: " + score, 20, 40);
+    ctx.font = "25px Arial";
+    ctx.fillText("Score: " + score, 20, 40);
+
+    speed += 0.001;
 
     requestAnimationFrame(update);
 }
 
-document.addEventListener("touchmove", function(e) {
-    player.x = e.touches[0].clientX - player.size / 2;
+// Controles PC
+document.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft" && player.lane > 0)
+        player.lane--;
+    if (e.key === "ArrowRight" && player.lane < 2)
+        player.lane++;
 });
 
-setInterval(spawnEnemy, 1000);
+// Controles celular
+document.addEventListener("touchstart", function(e) {
+    let touchX = e.touches[0].clientX;
+    if (touchX < canvas.width / 2 && player.lane > 0)
+        player.lane--;
+    else if (touchX > canvas.width / 2 && player.lane < 2)
+        player.lane++;
+});
+
+setInterval(spawnObstacle, 1000);
 update();
 </script>
 
